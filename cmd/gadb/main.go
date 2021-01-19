@@ -41,7 +41,7 @@ var (
 	pullCommand = &cobra.Command{
 		Use:   "pull REMOTE [LOCAL]",
 		Short: "pull files from device",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 2 {
 				return gadb.Pull(args[0], args[1])
