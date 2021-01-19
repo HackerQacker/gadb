@@ -71,7 +71,7 @@ func Shell(user string) error {
 const gadbTmpDeviceDir = "/data/local/tmp/.gadb-tmp"
 
 func Pull(remote, local string) error {
-	err := UserCommand("rm", "-rf", gadbTmpDeviceDir).Run()
+	err := UserCommand("root", "rm", "-rf", gadbTmpDeviceDir).Run()
 	if err != nil {
 		return err
 	}
@@ -81,18 +81,18 @@ func Pull(remote, local string) error {
 		return err
 	}
 
-	err = UserCommand("cp", "-R", remote, gadbTmpDeviceDir).Run()
+	err = UserCommand("root", "cp", "-R", remote, gadbTmpDeviceDir).Run()
 	if err != nil {
 		return err
 	}
 
-	err = UserCommand("chown", "-R", "shell:shell", gadbTmpDeviceDir).Run()
+	err = UserCommand("root", "chown", "-R", "shell:shell", gadbTmpDeviceDir).Run()
 	if err != nil {
 		return err
 	}
 
 	var bname bytes.Buffer
-	cmd := UserCommand("basename", remote)
+	cmd := UserCommand("root", "basename", remote)
 	cmd.Stdout = &bname
 	err = cmd.Run()
 	if err != nil {
@@ -113,7 +113,7 @@ func Pull(remote, local string) error {
 
 func PackagePath(packageName string) (string, error) {
 	var stderr, stdout bytes.Buffer
-	cmd := UserCommand("pm", "path", packageName)
+	cmd := UserCommand("root", "pm", "path", packageName)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

@@ -10,6 +10,7 @@ import (
 
 var (
 	runAsUser string
+	cachePath string
 )
 
 var (
@@ -55,9 +56,18 @@ var (
 		},
 	}
 
+	cacheCommand = &cobra.Command{
+		Use:   "cache",
+		Short: "Save/remove device's files locally",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			// TODO
+		},
+	}
+
 	ppathCommand = &cobra.Command{
 		Use:   "ppath PACKAGE",
-		Short: "Get the APK path of the given package",
+		Short: "Get APK path of a given package",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ppath, err := gadb.PackagePath(args[0])
@@ -72,7 +82,13 @@ var (
 )
 
 func init() {
+	defaultCache := "/tmp/.gadb"
+	if c := os.Getenv("GADB_CACHE"); c != "" {
+		defaultCache = c
+	}
+
 	rootCmd.PersistentFlags().StringVarP(&runAsUser, "user", "u", "root", "Device user to use")
+	rootCmd.PersistentFlags().StringVarP(&cachePath, "cache", "", defaultCache, "Root path to cache files")
 	rootCmd.AddCommand(shellCmd)
 	rootCmd.AddCommand(pullCommand)
 	rootCmd.AddCommand(ppathCommand)
