@@ -1,16 +1,23 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/omerye/gadb"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+const (
+	appName           = "gadb"
+	defaultDeviceUser = "root"
 )
 
 var (
-	runAsUser string
-	cachePath string
+	configFilePath = fmt.Sprintf("$HOME/.config/%s", appName)
 )
 
 var (
@@ -26,6 +33,7 @@ var (
 		Long:               `Run remote shell command on device with shell or root command (default: root)`,
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			runAsUser := viper.GetString("user")
 			if len(args) == 0 {
 				return gadb.Shell(runAsUser)
 			}
@@ -59,9 +67,43 @@ var (
 	cacheCommand = &cobra.Command{
 		Use:   "cache",
 		Short: "Save/remove device's files locally",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			// TODO
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cachePath := viper.GetString("cache")
+			if cachePath == "" {
+				return errors.New("Cache path must be set (either by flag os by config)")
+			}
+
+			serial, err := gadb.DeviceSerial()
+			if err != nil {
+				return err
+			}
+
+			model, err := gadb.DeviceModel()
+			if err != nil {
+				return err
+			}
+
+			dirName := fmt.Sprintf("%s-%s", model, serial)
+			dirPath := path.Join(cachePath, dirName)
+			err = os.MkdirAll(dirPath, 0755)
+			if err != nil {
+				return err
+			}
+
+			rootPathToCopy, err := cmd.Flags().GetStringSlice("root")
+			if err != nil {
+				return err
+			}
+
+			for _, p := range rootPathToCopy {
+				local := path.Join(dirPath, p)
+				err = gadb.Pull(p, local)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
 		},
 	}
 
@@ -82,16 +124,26 @@ var (
 )
 
 func init() {
-	defaultCache := "/tmp/.gadb"
-	if c := os.Getenv("GADB_CACHE"); c != "" {
-		defaultCache = c
-	}
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(configFilePath)
+	viper.SetEnvPrefix("GADB")
 
-	rootCmd.PersistentFlags().StringVarP(&runAsUser, "user", "u", "root", "Device user to use")
-	rootCmd.PersistentFlags().StringVarP(&cachePath, "cache", "", defaultCache, "Root path to cache files")
+	viper.SetDefault("user", defaultDeviceUser)
+	rootCmd.PersistentFlags().StringP("user", "u", "", "Device user to use")
+	viper.BindEnv("USER")
+
+	rootCmd.PersistentFlags().StringP("cache", "", "", "Root path to cache files")
+	viper.BindEnv("CACHE")
+
+	cacheCommand.PersistentFlags().StringSliceP("root", "", []string{"/system"}, "Device root paths to cache")
+
+	viper.BindPFlags(rootCmd.Flags())
+
 	rootCmd.AddCommand(shellCmd)
 	rootCmd.AddCommand(pullCommand)
 	rootCmd.AddCommand(ppathCommand)
+	rootCmd.AddCommand(cacheCommand)
 }
 
 func main() {

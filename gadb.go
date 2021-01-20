@@ -46,26 +46,35 @@ func init() {
 	adbPath = p
 }
 
-func getCmd(args []string) *exec.Cmd {
-	return &exec.Cmd{
-		Path:   adbPath,
-		Args:   args,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+func getCmd(args []string, defaultIo bool) *exec.Cmd {
+	cmd := &exec.Cmd{
+		Path: adbPath,
+		Args: args,
 	}
+
+	if defaultIo {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
+	return cmd
+}
+
+func trimSpace(s []byte) string {
+	return strings.TrimSpace(string(s))
 }
 
 func Command(name string, args ...string) *exec.Cmd {
-	return getCmd(append([]string{"adb", "shell", name}, args...))
+	return getCmd(append([]string{"adb", "shell", name}, args...), true)
 }
 
 func UserCommand(user string, name string, args ...string) *exec.Cmd {
-	return getCmd(append([]string{"adb", "shell", "su", user, "-c", name}, args...))
+	return getCmd(append([]string{"adb", "shell", "su", user, "-c", name}, args...), true)
 }
 
 func Shell(user string) error {
-	return getCmd([]string{"adb", "shell", "-t", "su", user}).Run()
+	return getCmd([]string{"adb", "shell", "-t", "su", user}, true).Run()
 }
 
 const gadbTmpDeviceDir = "/data/local/tmp/.gadb-tmp"
@@ -128,4 +137,22 @@ func PackagePath(packageName string) (string, error) {
 
 	stdoutStr := strings.TrimSpace(stdout.String())
 	return strings.TrimPrefix(stdoutStr, "package:"), nil
+}
+
+func DeviceSerial() (string, error) {
+	out, err := getCmd([]string{"adb", "get-serialno"}, false).Output()
+	if err != nil {
+		return "", err
+	}
+
+	return trimSpace(out), nil
+}
+
+func DeviceModel() (string, error) {
+	out, err := getCmd([]string{"adb", "shell", "getprop", "ro.product.model"}, false).Output()
+	if err != nil {
+		return "", err
+	}
+
+	return trimSpace(out), nil
 }
