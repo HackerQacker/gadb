@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -77,15 +78,84 @@ func Shell(user string) error {
 	return getCmd([]string{"adb", "shell", "-t", "su", user}, true).Run()
 }
 
+func getOwnership(path string) (string, error) {
+	var out bytes.Buffer
+	cmd := UserCommand("root", "stat", "-c", "\"%U:%G\"", path)
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(out.String()), nil
+}
+
 const gadbTmpDeviceDir = "/data/local/tmp/.gadb-tmp"
 
-func Pull(remote, local string) error {
+func resetTmpDeviceDir() error {
 	err := UserCommand("root", "rm", "-rf", gadbTmpDeviceDir).Run()
 	if err != nil {
 		return err
 	}
 
-	err = Command("mkdir", "-p", gadbTmpDeviceDir).Run()
+	return Command("mkdir", "-p", gadbTmpDeviceDir).Run()
+}
+
+func fileExists(devicePath string) bool {
+	// A bit vigorous..
+	return UserCommand("root", "test", "-f", devicePath).Run() == nil
+}
+
+func Push(local, remote string) error {
+	err := resetTmpDeviceDir()
+	if err != nil {
+		return err
+	}
+
+	cmd := &exec.Cmd{
+		Path:   adbPath,
+		Args:   append([]string{"adb", "push", local, gadbTmpDeviceDir}),
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	var bname bytes.Buffer
+	cmd = UserCommand("root", "basename", local)
+	cmd.Stdout = &bname
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	var ownershipToCheck string
+	if fileExists(remote) {
+		ownershipToCheck = remote
+	} else {
+		ownershipToCheck = filepath.Dir(remote)
+	}
+
+	ownerAndGroup, err := getOwnership(ownershipToCheck)
+	if err != nil {
+		return err
+	}
+
+	deviceTmpFilePath := path.Join(gadbTmpDeviceDir, strings.TrimSpace(bname.String()))
+	err = UserCommand("root", "cp", "-R", deviceTmpFilePath, remote).Run()
+	if err != nil {
+		return err
+	}
+
+	return UserCommand("root", "chown", "-R", ownerAndGroup, remote).Run()
+}
+
+func Pull(remote, local string) error {
+	err := resetTmpDeviceDir()
 	if err != nil {
 		return err
 	}

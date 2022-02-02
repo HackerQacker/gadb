@@ -64,6 +64,24 @@ var (
 		},
 	}
 
+	pushCommand = &cobra.Command{
+		Use:   "push [LOCAL] REMOTE",
+		Short: "push files to device",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 2 {
+				return gadb.Push(args[0], args[1])
+			}
+
+			local, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+
+			return gadb.Push(args[0], local)
+		},
+	}
+
 	cacheCommand = &cobra.Command{
 		Use:   "cache",
 		Short: "Save/remove device's files locally",
@@ -97,6 +115,7 @@ var (
 			}
 
 			for _, p := range rootPathToCopy {
+				cmd.Printf("Copying %s to device tmp dir..\n", p)
 				local := path.Join(dirPath, p)
 				err = gadb.Pull(p, local)
 				if err != nil {
@@ -142,6 +161,7 @@ func init() {
 
 	rootCmd.AddCommand(shellCmd)
 	rootCmd.AddCommand(pullCommand)
+	rootCmd.AddCommand(pushCommand)
 	rootCmd.AddCommand(ppathCommand)
 	rootCmd.AddCommand(cacheCommand)
 }
